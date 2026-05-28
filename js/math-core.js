@@ -144,8 +144,11 @@ const MathCore = (() => {
     const s1 = Math.sqrt(Math.max(0, eig.values[0]));
     const s2 = Math.sqrt(Math.max(0, eig.values[1]));
     let V, U;
-    if (eig.complex || !eig.vectors) {
-      V = [[1,0],[0,1]];
+    if (eig.complex || !eig.vectors || !eig.vectors[1]) {
+      // Repeated eigenvalues (e.g. rotation, identity, uniform scale):
+      // any orthonormal pair is valid — use v1 and its perpendicular.
+      const v1 = (eig.vectors && eig.vectors[0]) || [1, 0];
+      V = [[v1[0], -v1[1]], [v1[1], v1[0]]];
     } else {
       V = [[eig.vectors[0][0], eig.vectors[1][0]],
            [eig.vectors[0][1], eig.vectors[1][1]]];
@@ -182,11 +185,13 @@ const MathCore = (() => {
     });
     cov[0][0]/=n; cov[0][1]/=n; cov[1][0]/=n; cov[1][1]/=n;
     const eig = eigen2(cov);
+    const ev0 = (eig.vectors && eig.vectors[0]) || [1, 0];
+    const ev1 = (eig.vectors && eig.vectors[1]) || [-ev0[1], ev0[0]];
     const scores = centered.map(p => ({
-      pc1: p[0]*(eig.vectors?eig.vectors[0][0]:1) + p[1]*(eig.vectors?eig.vectors[1][0]:0),
-      pc2: p[0]*(eig.vectors?eig.vectors[0][1]:0) + p[1]*(eig.vectors?eig.vectors[1][1]:1)
+      pc1: p[0]*ev0[0] + p[1]*ev1[0],
+      pc2: p[0]*ev0[1] + p[1]*ev1[1]
     }));
-    return { mean: [mx,my], cov, vectors: eig.vectors, values: eig.values, scores };
+    return { mean: [mx,my], cov, vectors: [ev0, ev1], values: eig.values, scores };
   }
 
   return {
@@ -220,6 +225,10 @@ if (typeof window !== 'undefined' && window.__MATHCORE_TEST) {
     assertClose(frobenius(reconstruct(MathCore.svd2(m1)), m1), 0, 'svd2 diagonal reconstruction');
     const m2 = [[1,1],[0,1]];
     assertClose(frobenius(reconstruct(MathCore.svd2(m2)), m2), 0, 'svd2 shear reconstruction');
+    const m3 = [[0,-1],[1,0]]; // rotation — B=MᵀM=I, repeated eigenvalues
+    assertClose(frobenius(reconstruct(MathCore.svd2(m3)), m3), 0, 'svd2 rotation reconstruction');
+    const m4 = [[1,0],[0,1]]; // identity — uniform eigenvalues
+    assertClose(frobenius(reconstruct(MathCore.svd2(m4)), m4), 0, 'svd2 identity reconstruction');
     assertClose(MathCore.det2([[2,1],[1,2]]), 3, 'det2');
     console.log('[MathCore self-test] All assertions passed');
   })();

@@ -31,7 +31,7 @@ function play(){if(s.tween)s.tween.stop();s.prog=0;s.tween=AnimationEngine.tween
 function pause(){if(s.tween)s.tween.pause();}
 function reset(){if(s.tween)s.tween.stop();s.prog=0;}
 function render(){
-  r.resize();const mat=MathCore.interpolateMatrix(M(),s.prog,2);const eig=MathCore.eigen2(M());
+  const mat=MathCore.interpolateMatrix(M(),s.prog,2);const eig=MathCore.eigen2(M());
   r.clear();r.drawGrid([[1,0],[0,1]],{ghost:true});r.drawGrid(mat);r.drawArrow([0,0],MathCore.multiplyVec(mat,[1,0]),'#e84393','î',3);r.drawArrow([0,0],MathCore.multiplyVec(mat,[0,1]),'#43e8a8','ĵ',3);
   if(s.testVec){const t=s.testVec,tx=MathCore.multiplyVec(mat,t);r.drawArrow([0,0],t,'#7a82a8','x',2);r.drawArrow([0,0],tx,'#a78bfa','Mx',3);r.drawDot(t,'#7a82a8',4);r.drawDot(tx,'#a78bfa',5);} 
   const det=MathCore.det2(M()); ui.info.innerHTML='';[['det',det.toFixed(4)],['eigen',eig.complex?eig.display[0]:eig.display.join(', ')],['mode',s.compose?'A·B':'A'],['type',DLAnnotations.classify(M(),eig).type]].forEach(([k,v])=>{const d=document.createElement('div');d.className='info-item';d.innerHTML=`<span>${k}</span><span>${v}</span>`;ui.info.appendChild(d)});
@@ -45,6 +45,6 @@ function updateExercise(){const d=MathCore.det2(M());const idx=Math.abs(d)<1e-8?
 function save(){UIShared.saveHash('ch2',{A:s.A,B:s.B,c:s.compose,p:s.preset,t:s.testVec});}
 function load(){const h=UIShared.loadHash('ch2');if(!h)return; if(h.A)s.A=h.A;if(h.B)s.B=h.B;if(h.p!==undefined)s.preset=h.p;s.compose=!!h.c;s.testVec=h.t||null;ui.composeBox.hidden=!s.compose;ui.composeToggle.classList.toggle('active',s.compose);} 
 UIShared.setupKeyboardShortcuts({Space:play,R:reset,1:()=>loadPreset(0),2:()=>loadPreset(1),3:()=>loadPreset(2),4:()=>loadPreset(3),5:()=>loadPreset(4),6:()=>loadPreset(5),7:()=>loadPreset(6),8:()=>loadPreset(7),9:()=>loadPreset(8),0:()=>loadPreset(9),'-':()=>loadPreset(10),'=':()=>loadPreset(11)});
-load();drawInputs(ui.aGrid,s.A);drawInputs(ui.bGrid,s.B);refreshPresets();updateExercise();AnimationEngine.add(render);
+load();drawInputs(ui.aGrid,s.A);drawInputs(ui.bGrid,s.B);refreshPresets();updateExercise();AnimationEngine.add(render);window.addEventListener('resize',()=>r.resize());
 })();
 </script></body></html>
