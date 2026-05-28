@@ -11,4 +11,15 @@ const chapters = [
 ];
 const grid=document.getElementById('grid');
 chapters.forEach(ch=>{const card=document.createElement('article');card.className='chapter-card'+(ch.status==='coming'?' coming-soon':'');card.innerHTML=`<div><span class="badge">Chapter ${ch.n}</span> ${ch.status==='coming'?'<span class="badge">Coming Soon</span>':''}</div><h3>${ch.title}</h3><p>${ch.punchline}</p>`;if(ch.status==='live'){const a=document.createElement('a');a.href=ch.file;a.className='btn';a.textContent='→ Open';card.appendChild(a);}grid.appendChild(card);});
+// Sandbox card (special accent)
+const sandboxCard = document.createElement('article');
+sandboxCard.className = 'chapter-card';
+sandboxCard.style.borderColor = '#a78bfa';
+sandboxCard.innerHTML = `<div><span class="badge">Practice</span></div><h3>🔬 Matrix Sandbox & Practice</h3><p>Free-form calculator + rotation builder + quiz mode</p>`;
+const sandboxLink = document.createElement('a');
+sandboxLink.href = 'chapters/sandbox.html';
+sandboxLink.className = 'btn';
+sandboxLink.textContent = '→ Open';
+sandboxCard.appendChild(sandboxLink);
+grid.appendChild(sandboxCard);
 </script></body></html>

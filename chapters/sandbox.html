@@ -1,0 +1,369 @@
+<!doctype html><html lang="en"><head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Matrix Sandbox & Practice</title>
+<link rel="stylesheet" href="../css/theme.css"><link rel="stylesheet" href="../css/layout.css"><link rel="stylesheet" href="../css/components.css"></head><body>
+<div class="chapter-shell"><header class="chapter-header"><a href="../index.html">← Home</a><span class="badge">Sandbox</span><h1>🔬 Matrix Sandbox & Practice</h1><span id="scoreBadge" class="badge" hidden>Score: 0 / 0</span></header>
+<main class="chapter-main"><section class="canvas-area"><canvas id="c"></canvas></section><aside class="sidebar">
+<div class="panel"><div class="panel-title">Mode</div><div class="btn-group"><button id="modeExplore" class="btn active">Free Explore</button><button id="modeQuiz" class="btn">Practice Quiz</button></div></div>
+<div class="panel" id="rotPanel"><div class="panel-title">Rotation Builder</div><div style="display:flex;gap:8px;align-items:center"><label>θ°</label><input id="thetaNum" type="number" step="1" min="-360" max="360" class="m-input" style="width:70px" placeholder="angle"><input id="thetaSlider" type="range" min="-180" max="180" step="1" style="flex:1"></div><div id="rotLabel" style="font-size:12px;margin-top:4px;color:var(--text-dim)">Custom</div></div>
+<div class="panel"><div class="panel-title">Matrix M</div><div class="input-grid" id="mGrid"></div><div id="matInfo" style="font-size:12px;margin-top:6px;color:var(--text-dim)">det = 1.0000 | Identity</div></div>
+<div class="panel"><div class="panel-title">Vector v</div><div style="display:flex;gap:8px"><input id="vx" type="number" step="0.1" class="m-input" style="width:80px"><input id="vy" type="number" step="0.1" class="m-input" style="width:80px"></div></div>
+<div class="panel"><div class="panel-title">Your Prediction: M·v = ?</div><div style="display:flex;gap:8px"><input id="predX" type="number" step="0.1" class="m-input" style="width:80px" placeholder="x"><input id="predY" type="number" step="0.1" class="m-input" style="width:80px" placeholder="y"></div><button id="computeBtn" class="btn" style="margin-top:8px;width:100%" disabled>Compute & Check</button></div>
+<div class="panel" id="resultPanel" hidden><div class="panel-title">Result</div><pre id="formulaBlock" style="font-family:var(--font-mono);font-size:12px;line-height:1.6;color:var(--text-dim)"></pre><div id="badges" style="margin-top:8px"></div></div>
+<div class="panel" id="quizPanel" hidden><button id="newChallengeBtn" class="btn" style="width:100%">New Challenge (N)</button></div>
+</aside></main><footer>Shortcuts: Enter compute • N new challenge • R reset • E/Q switch mode</footer></div>
+<script src="../js/math-core.js"></script>
+<script src="../js/renderer.js"></script>
+<script src="../js/animation.js"></script>
+<script src="../js/dl-annotations.js"></script>
+<script src="../js/ui-shared.js"></script>
+<script>(()=>{
+const canvas=document.getElementById('c');
+const r=new CanvasRenderer(canvas);
+const s={
+  mode:'explore',
+  M:[[1,0],[0,1]],
+  v:[1,0],
+  pred:[null,null],
+  result:null,
+  theta:null,
+  score:{correct:0,total:0},
+  revealed:false,
+  animProg:1,
+  activeTween:null,
+};
+const QUIZ_POOL=[
+  [[0,-1],[1,0]],
+  [[-1,0],[0,-1]],
+  [[Math.round(Math.cos(Math.PI/4)*10000)/10000,-Math.round(Math.sin(Math.PI/4)*10000)/10000],[Math.round(Math.sin(Math.PI/4)*10000)/10000,Math.round(Math.cos(Math.PI/4)*10000)/10000]],
+  [[2,0],[0,2]],
+  [[0.5,0],[0,0.5]],
+  [[1,1],[0,1]],
+  [[-1,0],[0,1]],
+  [[1,0],[0,-1]],
+];
+function classifyMatrix(M){
+  const det=MathCore.det2(M);
+  const [[a,b],[c,d]]=M;
+  const eps=0.01;
+  if(Math.abs(det)<eps)return 'Singular';
+  const isDiag=Math.abs(b)<eps&&Math.abs(c)<eps;
+  if(isDiag){
+    if(Math.abs(a-d)<eps)return Math.abs(a-1)<eps?'Identity':'Uniform Scale';
+    return 'Scale';
+  }
+  if(Math.abs(det-1)<eps&&Math.abs(a-d)<eps&&Math.abs(b+c)<eps)return 'Rotation';
+  if(Math.abs(a-1)<eps&&Math.abs(d-1)<eps)return 'Shear';
+  if(det<-eps)return 'Reflection';
+  return 'Custom';
+}
+function save(){UIShared.saveHash('sandbox',{M:s.M,v:s.v,mode:s.mode,theta:s.theta});}
+function load(){
+  const h=UIShared.loadHash('sandbox');
+  if(!h)return;
+  if(h.M)s.M=h.M;
+  if(h.v)s.v=h.v;
+  if(h.mode)s.mode=h.mode;
+  if(h.theta!==undefined)s.theta=h.theta;
+}
+function updateComputeBtn(){
+  document.getElementById('computeBtn').disabled=(s.pred[0]===null||s.pred[1]===null);
+}
+function updateScoreBadge(){
+  const el=document.getElementById('scoreBadge');
+  el.textContent=`Score: ${s.score.correct} / ${s.score.total}`;
+  el.hidden=(s.mode!=='quiz');
+}
+function updateMatInfo(){
+  const det=MathCore.det2(s.M);
+  const type=s.theta!==null?`Rotation ${s.theta}°`:classifyMatrix(s.M);
+  document.getElementById('matInfo').textContent=`det = ${parseFloat(det.toFixed(4))} | ${type}`;
+}
+function breakRotLink(){
+  s.theta=null;
+  document.getElementById('thetaNum').value='';
+  document.getElementById('rotLabel').textContent='Custom';
+}
+function drawMatrixInputs(){
+  const grid=document.getElementById('mGrid');
+  grid.innerHTML='';
+  for(let i=0;i<2;i++)for(let j=0;j<2;j++){
+    const inp=document.createElement('input');
+    inp.className='m-input';
+    inp.type='number';
+    inp.step='0.01';
+    inp.value=parseFloat(s.M[i][j].toFixed(4));
+    inp.disabled=(s.mode==='quiz');
+    inp.oninput=()=>{
+      s.M[i][j]=MathCore.sanitize(Number(inp.value)||0);
+      breakRotLink();
+      s.result=null;s.revealed=false;
+      if(s.activeTween){s.activeTween.stop();s.activeTween=null;}
+      s.animProg=1;
+      document.getElementById('resultPanel').hidden=true;
+      updateMatInfo();
+      save();
+    };
+    grid.appendChild(inp);
+  }
+}
+function syncVInputs(){
+  const vxEl=document.getElementById('vx');
+  const vyEl=document.getElementById('vy');
+  vxEl.value=s.v[0];
+  vyEl.value=s.v[1];
+  vxEl.disabled=(s.mode==='quiz');
+  vyEl.disabled=(s.mode==='quiz');
+}
+function applyTheta(theta){
+  s.theta=theta;
+  const rad=theta*Math.PI/180;
+  s.M=[[Math.cos(rad),-Math.sin(rad)],[Math.sin(rad),Math.cos(rad)]];
+  document.getElementById('rotLabel').textContent=`Linked rotation: ${theta}°`;
+  s.result=null;s.revealed=false;
+  if(s.activeTween){s.activeTween.stop();s.activeTween=null;}
+  s.animProg=1;
+  document.getElementById('resultPanel').hidden=true;
+  drawMatrixInputs();
+  updateMatInfo();
+  save();
+}
+function showResultPanel(Mv){
+  const [[a,b],[c,d]]=s.M;
+  const [x,y]=s.v;
+  const f=v=>parseFloat(v.toFixed(4));
+  document.getElementById('formulaBlock').textContent=
+    `[ ${f(a).toFixed(4)}  ${f(b).toFixed(4)} ] [ ${f(x).toFixed(4)} ]   [ ${f(a)}·${f(x)} + ${f(b)}·${f(y)} ]   [ ${f(Mv[0])} ]\n`+
+    `[ ${f(c).toFixed(4)}  ${f(d).toFixed(4)} ] [ ${f(y).toFixed(4)} ] = [ ${f(c)}·${f(x)} + ${f(d)}·${f(y)} ] = [ ${f(Mv[1])} ]`;
+  const badges=document.getElementById('badges');
+  badges.innerHTML='';
+  ['x','y'].forEach((comp,i)=>{
+    const diff=Math.abs((s.pred[i]||0)-Mv[i]);
+    const correct=diff<=0.05;
+    const div=document.createElement('div');
+    div.style.cssText='margin:4px 0;font-size:13px';
+    div.innerHTML=correct?`✅ ${comp}: correct (${f(Mv[i])})`:`❌ ${comp}: got ${f(s.pred[i]||0)}, actual ${f(Mv[i])}`;
+    badges.appendChild(div);
+  });
+  document.getElementById('resultPanel').hidden=false;
+}
+function computeAndCheck(){
+  if(s.pred[0]===null||s.pred[1]===null)return;
+  const Mv=MathCore.multiplyVec(s.M,s.v);
+  s.result=Mv;
+  s.revealed=true;
+  s.animProg=0;
+  if(s.activeTween)s.activeTween.stop();
+  s.activeTween=AnimationEngine.tween({
+    duration:500,
+    onUpdate:(e)=>{s.animProg=e;},
+    onComplete:()=>{s.animProg=1;s.activeTween=null;}
+  });
+  s.activeTween.play();
+  showResultPanel(Mv);
+  if(s.mode==='quiz'){
+    s.score.total++;
+    const dx=Math.abs(s.pred[0]-Mv[0]);
+    const dy=Math.abs(s.pred[1]-Mv[1]);
+    if(dx<=0.05&&dy<=0.05)s.score.correct++;
+    updateScoreBadge();
+  }
+}
+function genRandom(){
+  const vals=[-2,-1,1,2];
+  let M,tries=0;
+  do{
+    M=[[vals[Math.floor(Math.random()*4)],vals[Math.floor(Math.random()*4)]],[vals[Math.floor(Math.random()*4)],vals[Math.floor(Math.random()*4)]]];
+    tries++;
+  }while(Math.abs(MathCore.det2(M))<0.1&&tries<20);
+  if(tries>=20)M=[[2,1],[1,1]];
+  return M;
+}
+function genVector(){
+  let v,tries=0;
+  do{v=[Math.floor(Math.random()*7)-3,Math.floor(Math.random()*7)-3];tries++;}while(v[0]===0&&v[1]===0&&tries<20);
+  return v;
+}
+function newChallenge(){
+  if(s.mode!=='quiz')return;
+  const pool=[...QUIZ_POOL,genRandom()];
+  s.M=pool[Math.floor(Math.random()*pool.length)];
+  s.v=genVector();
+  s.pred=[null,null];
+  s.result=null;
+  s.revealed=false;
+  s.theta=null;
+  document.getElementById('thetaNum').value='';
+  document.getElementById('rotLabel').textContent='Custom';
+  if(s.activeTween){s.activeTween.stop();s.activeTween=null;}
+  s.animProg=1;
+  document.getElementById('predX').value='';
+  document.getElementById('predY').value='';
+  document.getElementById('resultPanel').hidden=true;
+  drawMatrixInputs();
+  syncVInputs();
+  updateMatInfo();
+  updateComputeBtn();
+  save();
+}
+function resetView(){
+  s.pred=[null,null];
+  s.result=null;
+  s.revealed=false;
+  if(s.activeTween){s.activeTween.stop();s.activeTween=null;}
+  s.animProg=1;
+  document.getElementById('predX').value='';
+  document.getElementById('predY').value='';
+  document.getElementById('resultPanel').hidden=true;
+  updateComputeBtn();
+}
+function setMode(mode){
+  s.mode=mode;
+  s.pred=[null,null];
+  s.result=null;
+  s.revealed=false;
+  document.getElementById('predX').value='';
+  document.getElementById('predY').value='';
+  document.getElementById('resultPanel').hidden=true;
+  if(s.activeTween){s.activeTween.stop();s.activeTween=null;}
+  s.animProg=1;
+  document.getElementById('modeExplore').classList.toggle('active',mode==='explore');
+  document.getElementById('modeQuiz').classList.toggle('active',mode==='quiz');
+  document.getElementById('rotPanel').style.display=mode==='explore'?'':'none';
+  document.getElementById('quizPanel').hidden=(mode!=='quiz');
+  document.getElementById('scoreBadge').hidden=(mode!=='quiz');
+  drawMatrixInputs();
+  syncVInputs();
+  updateComputeBtn();
+  save();
+  if(mode==='quiz')newChallenge();
+}
+function drawScene(){
+  const mat=s.M;
+  r.clear();
+  r.drawGrid([[1,0],[0,1]],{ghost:true});
+  r.drawGrid(mat);
+  const vLen=Math.hypot(s.v[0],s.v[1]);
+  if(vLen>0.001)r.drawArrow([0,0],s.v,'#7a82a8','v',2);
+  if(s.revealed){
+    const Mv=s.result;
+    MathCore.matLerp([[s.v[0],0],[s.v[1],0]],[[Mv[0],0],[Mv[1],0]],s.animProg);
+    const pt=[s.v[0]+(Mv[0]-s.v[0])*s.animProg,s.v[1]+(Mv[1]-s.v[1])*s.animProg];
+    r.drawArrow([0,0],pt,'#f7c948','Mv',2.5);
+    if(s.pred[0]!==null&&s.pred[1]!==null){
+      const ctx=r.ctx;
+      ctx.save();
+      ctx.setLineDash([6,4]);
+      r.drawArrow([0,0],[s.pred[0],s.pred[1]],'#a78bfa','pred',2);
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+  }
+  const det=MathCore.det2(s.M);
+  if(Math.abs(Math.abs(det)-1)<0.01&&Math.abs(s.M[0][1])>0.01){
+    const ctx=r.ctx;
+    const [ox,oy]=r.toScreen([0,0]);
+    const arcR=r.scale*1.2;
+    const angle=Math.atan2(s.M[1][0],s.M[0][0]);
+    ctx.save();
+    ctx.strokeStyle='rgba(167,139,250,0.5)';
+    ctx.lineWidth=1.5;
+    ctx.beginPath();
+    ctx.arc(ox,oy,arcR,-0,-angle,angle<0);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+const thetaNum=document.getElementById('thetaNum');
+const thetaSlider=document.getElementById('thetaSlider');
+const predXEl=document.getElementById('predX');
+const predYEl=document.getElementById('predY');
+thetaNum.addEventListener('input',()=>{
+  const v=thetaNum.value;
+  if(v===''){breakRotLink();updateMatInfo();save();return;}
+  const t=MathCore.sanitize(Number(v));
+  thetaSlider.value=Math.max(-180,Math.min(180,t));
+  applyTheta(t);
+});
+thetaSlider.addEventListener('input',()=>{
+  const t=Number(thetaSlider.value);
+  thetaNum.value=t;
+  applyTheta(t);
+});
+document.getElementById('modeExplore').onclick=()=>setMode('explore');
+document.getElementById('modeQuiz').onclick=()=>setMode('quiz');
+document.getElementById('newChallengeBtn').onclick=newChallenge;
+document.getElementById('vx').addEventListener('input',e=>{
+  s.v[0]=MathCore.sanitize(Number(e.target.value)||0);
+  s.result=null;s.revealed=false;
+  if(s.activeTween){s.activeTween.stop();s.activeTween=null;}
+  s.animProg=1;
+  document.getElementById('resultPanel').hidden=true;
+  save();
+});
+document.getElementById('vy').addEventListener('input',e=>{
+  s.v[1]=MathCore.sanitize(Number(e.target.value)||0);
+  s.result=null;s.revealed=false;
+  if(s.activeTween){s.activeTween.stop();s.activeTween=null;}
+  s.animProg=1;
+  document.getElementById('resultPanel').hidden=true;
+  save();
+});
+[predXEl,predYEl].forEach(inp=>{
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&s.pred[0]!==null&&s.pred[1]!==null){
+      e.preventDefault();
+      computeAndCheck();
+    }
+  });
+  inp.addEventListener('input',()=>{
+    s.pred=[
+      document.getElementById('predX').value!==''?Number(document.getElementById('predX').value):null,
+      document.getElementById('predY').value!==''?Number(document.getElementById('predY').value):null,
+    ];
+    updateComputeBtn();
+  });
+});
+document.getElementById('computeBtn').onclick=computeAndCheck;
+canvas.addEventListener('click',e=>{
+  if (s.mode === 'quiz') return;
+  const rect=canvas.getBoundingClientRect();
+  const wc=r.toWorld(e.clientX-rect.left,e.clientY-rect.top);
+  s.v=[Math.round(wc[0]*2)/2,Math.round(wc[1]*2)/2];
+  s.result=null;
+  s.revealed=false;
+  if(s.activeTween){s.activeTween.stop();s.activeTween=null;}
+  s.animProg=1;
+  document.getElementById('resultPanel').hidden=true;
+  syncVInputs();
+  save();
+});
+UIShared.setupKeyboardShortcuts({
+  Enter:computeAndCheck,
+  n:newChallenge,
+  r:resetView,
+  e:()=>setMode('explore'),
+  q:()=>setMode('quiz'),
+});
+load();
+drawMatrixInputs();
+syncVInputs();
+if(s.theta!==null&&s.theta!==undefined){
+  thetaNum.value=s.theta;
+  thetaSlider.value=Math.max(-180,Math.min(180,s.theta));
+  document.getElementById('rotLabel').textContent=`Linked rotation: ${s.theta}°`;
+}else{
+  thetaNum.value='';
+  document.getElementById('rotLabel').textContent='Custom';
+}
+updateMatInfo();
+updateScoreBadge();
+document.getElementById('modeExplore').classList.toggle('active',s.mode==='explore');
+document.getElementById('modeQuiz').classList.toggle('active',s.mode==='quiz');
+document.getElementById('rotPanel').style.display=s.mode==='explore'?'':'none';
+document.getElementById('quizPanel').hidden=(s.mode!=='quiz');
+document.getElementById('scoreBadge').hidden=(s.mode!=='quiz');
+updateComputeBtn();
+AnimationEngine.add(drawScene);
+window.addEventListener('resize',()=>r.resize());
+})();</script></body></html>
