@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ch1 — Vectors & Linear Combinations</title>
+  <link rel="stylesheet" href="../css/theme.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head>
+<body>
+<div class="chapter-shell">
+  <header class="chapter-header">
+    <a href="../index.html">← Home</a>
+    <span class="badge">Chapter 1</span>
+    <h1>Vectors & Linear Combinations</h1>
+    <div>\(\vec{v} = a\hat{i} + b\hat{j}\)</div>
+  </header>
+  <main class="chapter-main">
+    <section class="canvas-area"><canvas id="c"></canvas></section>
+    <aside class="sidebar">
+      <div class="panel"><div class="panel-title">Presets (1-5)</div><div id="presets" class="preset-bar"></div></div>
+      <div class="panel"><label>Scalar multiplier</label><input id="scalar" type="range" min="0.1" max="3" step="0.1" value="1.5"><div id="scalarv"></div></div>
+      <div class="panel"><div class="panel-title">Transport</div><div class="transport-bar"><button id="play" class="btn">Animate (Space)</button><button id="reset" class="btn">Reset (R)</button></div></div>
+      <div class="panel"><div class="panel-title">Info</div><div class="info-grid" id="info"></div></div>
+      <div class="panel"><div class="panel-title">Narration</div><div class="narration" id="narr"></div></div>
+      <div class="panel dl-panel"><div class="panel-title" id="dlh"></div><div id="dlc" class="narration"></div><pre class="code-block" id="dlcode"></pre></div>
+      <div class="panel exercise-panel"><div class="panel-title">Predict then reveal</div><div id="exercise"></div></div>
+    </aside>
+  </main>
+  <footer>Space animate • R reset • keys 1-5 presets • drag handles</footer>
+</div>
+<script src="../js/math-core.js"></script>
+<script src="../js/renderer.js"></script>
+<script src="../js/animation.js"></script>
+<script src="../js/dl-annotations.js"></script>
+<script src="../js/ui-shared.js"></script>
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const renderer = new CanvasRenderer(canvas);
+  const ui = {
+    presets: document.getElementById('presets'), play: document.getElementById('play'), reset: document.getElementById('reset'),
+    info: document.getElementById('info'), narr: document.getElementById('narr'), scalar: document.getElementById('scalar'), scalarv: document.getElementById('scalarv')
+  };
+  const COLORS={v1:'#e84393',v2:'#43e8a8',res:'#a78bfa',ghost:'#7a82a8'};
+  const state = {
+    v1: [1,0], v2:[0,1], preset:1, animT:1, playing:false, drag:null, scaleMul:1.5,
+    presets:[
+      {name:'Basis vectors', apply(){state.v1=[1,0];state.v2=[0,1];}},
+      {name:'Addition demo', apply(){state.v1=[2,1];state.v2=[1,2];}},
+      {name:'Scalar multiply', apply(){state.v1=[1,0.5];state.v2=[state.scaleMul*state.v1[0],state.scaleMul*state.v1[1]];}},
+      {name:'Span visualization', apply(){state.v1=[2,0.5];state.v2=[-0.5,1.7];}},
+      {name:'Word analogy', apply(){state.v1=[1.2,0.6];state.v2=[0.4,1.5];}}
+    ]
+  };
+
+  function resize(){ renderer.resize(); }
+  window.addEventListener('resize', resize);
+
+  function setPreset(i){ state.preset=i+1; state.presets[i].apply(); state.animT=1; state.playing=false; refreshPresetButtons(); save(); updateExercise(); }
+  function refreshPresetButtons(){
+    ui.presets.innerHTML='';
+    state.presets.forEach((p,i)=>{const b=document.createElement('button');b.className='preset-btn'+(state.preset===i+1?' active':'');b.textContent=`${i+1}. ${p.name}`;b.onclick=()=>setPreset(i);ui.presets.appendChild(b);});
+  }
+
+  function drawSpan(){
+    if(state.preset!==4) return;
+    const pts=[];
+    for(let a=-1;a<=1;a+=0.25){for(let b=-1;b<=1;b+=0.25){pts.push([a*state.v1[0]+b*state.v2[0],a*state.v1[1]+b*state.v2[1]]);} }
+    renderer.drawDataCloud(pts,'rgba(167,139,250,0.35)',2);
+  }
+
+  function render(){
+    renderer.clear();
+    renderer.drawGrid([[1,0],[0,1]],{ghost:true});
+    renderer.drawGrid([[1,0],[0,1]]);
+    drawSpan();
+    const t=state.animT;
+    const off=[state.v1[0]*t,state.v1[1]*t];
+    const result=[state.v1[0]+state.v2[0],state.v1[1]+state.v2[1]];
+    renderer.drawArrow([0,0],state.v1,COLORS.v1,'v1',3);
+    renderer.drawArrow([0,0],state.v2,COLORS.v2,'v2',3);
+    renderer.drawArrow(off,[off[0]+state.v2[0],off[1]+state.v2[1]],COLORS.ghost,'',2);
+    renderer.drawArrow([0,0],result,COLORS.res,'v1+v2',2);
+    renderer.drawDot(state.v1,COLORS.v1,6); renderer.drawDot(state.v2,COLORS.v2,6);
+    updateInfo();
+  }
+
+  function updateInfo(){
+    const mag1=Math.hypot(...state.v1), mag2=Math.hypot(...state.v2);
+    const dot=state.v1[0]*state.v2[0]+state.v1[1]*state.v2[1];
+    const ang=Math.acos(Math.max(-1,Math.min(1,dot/(mag1*mag2||1))))*180/Math.PI;
+    ui.info.innerHTML='';
+    [['v1',`[${state.v1[0].toFixed(2)}, ${state.v1[1].toFixed(2)}]`],['v2',`[${state.v2[0].toFixed(2)}, ${state.v2[1].toFixed(2)}]`],['|v1|',mag1.toFixed(3)],['|v2|',mag2.toFixed(3)],['Angle',ang.toFixed(2)+'°']].forEach(([k,v])=>{
+      const row=document.createElement('div');row.className='info-item';row.innerHTML=`<span>${k}</span><span>${v}</span>`;ui.info.appendChild(row);
+    });
+    const txt = state.preset===5 ? 'Think semantic offsets: king - man + woman ≈ queen. Vector arithmetic is geometry.' :
+      state.preset===4 ? 'Any target in the plane can be reached if v1 and v2 are not collinear.' :
+      'Drag vectors to see linear combinations and angle changes in real time.';
+    ui.narr.textContent = txt;
+  }
+
+  function animateAddition(){
+    state.playing=true;
+    const tw=AnimationEngine.tween({duration:1200,onUpdate:(e)=>{state.animT=e;},onComplete:()=>{state.playing=false;}});
+    tw.play();
+  }
+
+  function hit(x,y,v){return Math.hypot(x-v[0],y-v[1])<12/renderer.scale;}
+  UIShared.setupDrag(canvas,(sx,sy,start)=>{
+    const [x,y]=renderer.toWorld(sx,sy);
+    if(start){ state.drag = hit(x,y,state.v1)?'v1':(hit(x,y,state.v2)?'v2':null); }
+    if(state.drag){ state[state.drag]=[x,y]; if(state.preset===3&&state.drag==='v1'){state.v2=[state.scaleMul*x,state.scaleMul*y];} save(); }
+  },{hitTest:(sx,sy)=>{const [x,y]=renderer.toWorld(sx,sy); return hit(x,y,state.v1)||hit(x,y,state.v2);}});
+
+  ui.scalar.addEventListener('input',()=>{
+    state.scaleMul=Number(ui.scalar.value); ui.scalarv.textContent='×'+state.scaleMul.toFixed(1);
+    if(state.preset===3){state.v2=[state.scaleMul*state.v1[0],state.scaleMul*state.v1[1]];}
+    save();
+  });
+
+  function solve2x2(A,b){const d=MathCore.det2(A); if(Math.abs(d)<1e-9) return null; return [(b[0]*A[1][1]-b[1]*A[0][1])/d,(A[0][0]*b[1]-A[1][0]*b[0])/d];}
+  function updateExercise(){
+    const target=[1.5,0.7];
+    const x=solve2x2([[state.v1[0],state.v2[0]],[state.v1[1],state.v2[1]]],target);
+    const inSpan=!!x;
+    UIShared.createPredictReveal(document.getElementById('exercise'),'Is T=[1.5,0.7] in span(v1,v2)?',['Yes','No'],inSpan?0:1,
+      inSpan?`Yes. Coefficients: a=${x[0].toFixed(3)}, b=${x[1].toFixed(3)}.`:'No. v1 and v2 are linearly dependent here.');
+  }
+
+  function save(){ UIShared.saveHash('state',{v1:state.v1,v2:state.v2,p:state.preset,s:state.scaleMul}); }
+  function load(){
+    const h=UIShared.loadHash('state'); if(!h) return;
+    if(Array.isArray(h.v1)&&Array.isArray(h.v2)){state.v1=h.v1; state.v2=h.v2;}
+    if(h.p>=1&&h.p<=5) state.preset=h.p;
+    if(h.s) {state.scaleMul=h.s; ui.scalar.value=state.scaleMul; ui.scalarv.textContent='×'+state.scaleMul.toFixed(1);} 
+  }
+
+  ui.play.onclick=animateAddition;
+  ui.reset.onclick=()=>setPreset(state.preset-1);
+  UIShared.setupKeyboardShortcuts({Space:animateAddition,R:()=>setPreset(state.preset-1),1:()=>setPreset(0),2:()=>setPreset(1),3:()=>setPreset(2),4:()=>setPreset(3),5:()=>setPreset(4)});
+
+  const emb=DLAnnotations.get('embeddings');
+  document.getElementById('dlh').textContent=emb.headline;
+  document.getElementById('dlc').textContent=emb.dlConnection;
+  document.getElementById('dlcode').textContent=emb.pytorch;
+
+  load();
+  refreshPresetButtons();
+  if(!UIShared.loadHash('state')) setPreset(0);
+  updateExercise();
+  AnimationEngine.add(render);
+})();
+</script>
+</body>
+</html>

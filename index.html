@@ -1,0 +1,14 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Linear Algebra for ML & DL</title><link rel="stylesheet" href="css/theme.css"><link rel="stylesheet" href="css/components.css"><style>main{max-width:1100px;margin:auto;padding:24px}h1{font-size:2rem}.hero p{color:var(--text-dim)}.kbd{font-family:var(--font-mono);background:#0d1330;border:1px solid var(--border);padding:2px 6px;border-radius:4px}</style></head><body><main><section class="hero"><h1>Linear Algebra for ML & Deep Learning</h1><p>Interactive visual companion — inspired by 3Blue1Brown</p><p>Tagline: 3B1B color scheme with pink î, green ĵ, gold/purple eigen directions.</p></section><section id="grid" class="chapter-grid"></section><section class="panel" style="margin-top:14px"><div class="panel-title">Keyboard shortcuts</div><div class="narration"><span class="kbd">Space</span> animate • <span class="kbd">R</span> reset • <span class="kbd">1-5</span> presets</div></section><footer style="margin-top:16px"><a href="https://github.com/armaan-hub/Machine_Deep_Learning" target="_blank">GitHub repo</a></footer></main><script>
+const chapters = [
+  { n:1, title:'Vectors & Linear Combinations', file:'chapters/ch1-vectors-linear-combinations.html', punchline:'Word embeddings as geometric vectors', status:'live' },
+  { n:2, title:'Matrix Transformations', file:'chapters/ch2-matrix-transformations.html', punchline:'Every linear layer Wx is a transformation', status:'live' },
+  { n:3, title:'Determinants & Area', file:'chapters/ch3-determinants-area.html', punchline:'Jacobian determinant in normalizing flows', status:'live' },
+  { n:4, title:'Eigenvectors & Eigenvalues', file:'chapters/ch4-eigenvectors-eigenvalues.html', punchline:'PCA, RNN stability, gradient dynamics', status:'live' },
+  { n:5, title:'SVD: Singular Value Decomposition', file:'chapters/ch5-svd.html', punchline:'LoRA fine-tuning, weight health analysis', status:'live' },
+  { n:6, title:'PCA: Principal Component Analysis', file:'#', punchline:'Dimensionality reduction, activation analysis', status:'coming' },
+  { n:7, title:'Gradient Descent Geometry', file:'#', punchline:'Loss landscapes, Adam, saddle points', status:'coming' },
+  { n:8, title:'Attention Mechanism', file:'#', punchline:'QKV projections as geometric similarity', status:'coming' },
+];
+const grid=document.getElementById('grid');
+chapters.forEach(ch=>{const card=document.createElement('article');card.className='chapter-card'+(ch.status==='coming'?' coming-soon':'');card.innerHTML=`<div><span class="badge">Chapter ${ch.n}</span> ${ch.status==='coming'?'<span class="badge">Coming Soon</span>':''}</div><h3>${ch.title}</h3><p>${ch.punchline}</p>`;if(ch.status==='live'){const a=document.createElement('a');a.href=ch.file;a.className='btn';a.textContent='→ Open';card.appendChild(a);}grid.appendChild(card);});
+</script></body></html>

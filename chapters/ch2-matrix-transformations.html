@@ -1,0 +1,50 @@
+<!doctype html><html lang="en"><head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Ch2 — Matrix Transformations</title>
+<link rel="stylesheet" href="../css/theme.css"><link rel="stylesheet" href="../css/layout.css"><link rel="stylesheet" href="../css/components.css"></head><body>
+<div class="chapter-shell"><header class="chapter-header"><a href="../index.html">← Home</a><span class="badge">Chapter 2</span><h1>Matrix Transformations</h1></header>
+<main class="chapter-main"><section class="canvas-area"><canvas id="c"></canvas></section><aside class="sidebar">
+<div class="panel"><div class="panel-title">Presets (1-9,0,-,=)</div><div id="presets" class="preset-bar"></div></div>
+<div class="panel"><div class="panel-title">Matrix A</div><div class="input-grid" id="aGrid"></div></div>
+<div class="panel"><button class="btn" id="composeToggle">Compose A·B</button><div id="composeBox" hidden><div class="panel-title" style="margin-top:8px">Matrix B</div><div class="input-grid" id="bGrid"></div></div></div>
+<div class="panel"><div class="transport-bar"><button class="btn" id="play">Play (Space)</button><button class="btn" id="pause">Pause</button><button class="btn" id="reset">Reset (R)</button></div></div>
+<div class="panel"><div class="panel-title">Info</div><div id="info" class="info-grid"></div></div>
+<div class="panel"><div class="panel-title">Narration</div><div id="narr" class="narration"></div></div>
+<div class="panel dl-panel"><div class="panel-title" id="dlh"></div><div id="dlc" class="narration"></div><pre class="code-block" id="dlcode"></pre></div>
+<div class="panel exercise-panel"><div class="panel-title">Predict then reveal</div><div id="exercise"></div></div>
+</aside></main><footer>Click canvas to place custom test vector.</footer></div>
+<script src="../js/math-core.js"></script><script src="../js/renderer.js"></script><script src="../js/animation.js"></script><script src="../js/dl-annotations.js"></script><script src="../js/ui-shared.js"></script>
+<script>
+(()=>{
+const canvas=document.getElementById('c');const r=new CanvasRenderer(canvas);
+const C45=Math.cos(Math.PI/4),S45=Math.sin(Math.PI/4);
+const presets=[[[1,0],[0,1]],[[C45,-S45],[S45,C45]],[[0,-1],[1,0]],[[2,0],[0,2]],[[2,0],[0,0.5]],[[1,1],[0,1]],[[-1,0],[0,1]],[[1,0],[0,0]],[[3,1],[0,2]],[[1,0],[0,0.01]],[[0,1],[1,0]],[[1-2*0.6*0.6,-2*0.6*0.8],[-2*0.6*0.8,1-2*0.8*0.8]]];
+const names=['Identity','Rotate 45°','Rotate 90°','Scale 2x','Stretch det=1','Shear X','Reflect Y','Project X','Eigen demo','Near collapse','Reflect y=x','Householder'];
+const keyMap=['1','2','3','4','5','6','7','8','9','0','-','='];
+const s={A:[[1,0],[0,1]],B:[[1,0],[0,1]],compose:false,preset:0,prog:1,testVec:null,tween:null};
+const ui={presets:document.getElementById('presets'),aGrid:document.getElementById('aGrid'),bGrid:document.getElementById('bGrid'),composeToggle:document.getElementById('composeToggle'),composeBox:document.getElementById('composeBox'),info:document.getElementById('info'),narr:document.getElementById('narr')};
+function M(){return s.compose?MathCore.multiply(s.A,s.B):s.A;}
+function drawInputs(el,m){el.innerHTML='';for(let i=0;i<2;i++)for(let j=0;j<2;j++){const inp=document.createElement('input');inp.className='m-input';inp.type='number';inp.step='0.01';inp.value=m[i][j];inp.oninput=()=>{m[i][j]=Number(inp.value)||0;s.preset=-1;save();updateExercise();};el.appendChild(inp);}}
+function refreshPresets(){ui.presets.innerHTML='';presets.forEach((p,i)=>{const b=document.createElement('button');b.className='preset-btn'+(i===s.preset?' active':'');b.textContent=`${keyMap[i]} ${names[i]}`;b.onclick=()=>loadPreset(i);ui.presets.appendChild(b);});}
+function loadPreset(i){s.preset=i;s.A=MathCore.clone(presets[i]);drawInputs(ui.aGrid,s.A);save();updateExercise();refreshPresets();}
+function play(){if(s.tween)s.tween.stop();s.prog=0;s.tween=AnimationEngine.tween({duration:1200,onUpdate:e=>s.prog=e,onComplete:()=>s.prog=1});s.tween.play();}
+function pause(){if(s.tween)s.tween.pause();}
+function reset(){if(s.tween)s.tween.stop();s.prog=0;}
+function render(){
+  r.resize();const mat=MathCore.interpolateMatrix(M(),s.prog,2);const eig=MathCore.eigen2(M());
+  r.clear();r.drawGrid([[1,0],[0,1]],{ghost:true});r.drawGrid(mat);r.drawArrow([0,0],MathCore.multiplyVec(mat,[1,0]),'#e84393','î',3);r.drawArrow([0,0],MathCore.multiplyVec(mat,[0,1]),'#43e8a8','ĵ',3);
+  if(s.testVec){const t=s.testVec,tx=MathCore.multiplyVec(mat,t);r.drawArrow([0,0],t,'#7a82a8','x',2);r.drawArrow([0,0],tx,'#a78bfa','Mx',3);r.drawDot(t,'#7a82a8',4);r.drawDot(tx,'#a78bfa',5);} 
+  const det=MathCore.det2(M()); ui.info.innerHTML='';[['det',det.toFixed(4)],['eigen',eig.complex?eig.display[0]:eig.display.join(', ')],['mode',s.compose?'A·B':'A'],['type',DLAnnotations.classify(M(),eig).type]].forEach(([k,v])=>{const d=document.createElement('div');d.className='info-item';d.innerHTML=`<span>${k}</span><span>${v}</span>`;ui.info.appendChild(d)});
+  ui.narr.textContent=s.compose?'Composition active: apply B then A. Order matters (non-commutative).':'Columns of A are transformed basis vectors.';
+  const ann=DLAnnotations.classify(M(),eig);document.getElementById('dlh').textContent=ann.headline;document.getElementById('dlc').textContent=ann.dlConnection;document.getElementById('dlcode').textContent=ann.pytorch;
+}
+canvas.addEventListener('click',e=>{const rect=canvas.getBoundingClientRect();s.testVec=r.toWorld(e.clientX-rect.left,e.clientY-rect.top);save();});
+ui.composeToggle.onclick=()=>{s.compose=!s.compose;ui.composeBox.hidden=!s.compose;ui.composeToggle.classList.toggle('active',s.compose);save();};
+document.getElementById('play').onclick=play;document.getElementById('pause').onclick=pause;document.getElementById('reset').onclick=reset;
+function updateExercise(){const d=MathCore.det2(M());const idx=Math.abs(d)<1e-8?2:(d>0?0:1);UIShared.createPredictReveal(document.getElementById('exercise'),'Will det(M) be positive, negative, or zero?',['Positive','Negative','Zero'],idx,`det=${d.toFixed(4)}`);}
+function save(){UIShared.saveHash('ch2',{A:s.A,B:s.B,c:s.compose,p:s.preset,t:s.testVec});}
+function load(){const h=UIShared.loadHash('ch2');if(!h)return; if(h.A)s.A=h.A;if(h.B)s.B=h.B;if(h.p!==undefined)s.preset=h.p;s.compose=!!h.c;s.testVec=h.t||null;ui.composeBox.hidden=!s.compose;ui.composeToggle.classList.toggle('active',s.compose);} 
+UIShared.setupKeyboardShortcuts({Space:play,R:reset,1:()=>loadPreset(0),2:()=>loadPreset(1),3:()=>loadPreset(2),4:()=>loadPreset(3),5:()=>loadPreset(4),6:()=>loadPreset(5),7:()=>loadPreset(6),8:()=>loadPreset(7),9:()=>loadPreset(8),0:()=>loadPreset(9),'-':()=>loadPreset(10),'=':()=>loadPreset(11)});
+load();drawInputs(ui.aGrid,s.A);drawInputs(ui.bGrid,s.B);refreshPresets();updateExercise();AnimationEngine.add(render);
+})();
+</script></body></html>
