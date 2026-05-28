@@ -47,14 +47,17 @@ function classifyMatrix(M){
   const [[a,b],[c,d]]=M;
   const eps=0.01;
   if(Math.abs(det)<eps)return 'Singular';
+  if(det<-eps)return 'Reflection';
   const isDiag=Math.abs(b)<eps&&Math.abs(c)<eps;
   if(isDiag){
-    if(Math.abs(a-d)<eps)return Math.abs(a-1)<eps?'Identity':'Uniform Scale';
+    if(Math.abs(a-d)<eps){
+      if(Math.abs(det-1)<eps&&Math.abs(a+1)<eps)return 'Rotation';
+      return Math.abs(a-1)<eps?'Identity':'Uniform Scale';
+    }
     return 'Scale';
   }
   if(Math.abs(det-1)<eps&&Math.abs(a-d)<eps&&Math.abs(b+c)<eps)return 'Rotation';
   if(Math.abs(a-1)<eps&&Math.abs(d-1)<eps)return 'Shear';
-  if(det<-eps)return 'Reflection';
   return 'Custom';
 }
 function save(){UIShared.saveHash('sandbox',{M:s.M,v:s.v,mode:s.mode,theta:s.theta});}
@@ -95,7 +98,7 @@ function drawMatrixInputs(){
     inp.value=parseFloat(s.M[i][j].toFixed(4));
     inp.disabled=(s.mode==='quiz');
     inp.oninput=()=>{
-      s.M[i][j]=MathCore.sanitize(Number(inp.value)||0);
+    s.M[i][j]=Number(inp.value)||0;
       breakRotLink();
       s.result=null;s.revealed=false;
       if(s.activeTween){s.activeTween.stop();s.activeTween=null;}
@@ -133,8 +136,8 @@ function showResultPanel(Mv){
   const [x,y]=s.v;
   const f=v=>parseFloat(v.toFixed(4));
   document.getElementById('formulaBlock').textContent=
-    `[ ${f(a).toFixed(4)}  ${f(b).toFixed(4)} ] [ ${f(x).toFixed(4)} ]   [ ${f(a)}·${f(x)} + ${f(b)}·${f(y)} ]   [ ${f(Mv[0])} ]\n`+
-    `[ ${f(c).toFixed(4)}  ${f(d).toFixed(4)} ] [ ${f(y).toFixed(4)} ] = [ ${f(c)}·${f(x)} + ${f(d)}·${f(y)} ] = [ ${f(Mv[1])} ]`;
+    `[ ${f(a).toFixed(4)}  ${f(b).toFixed(4)} ] [ ${f(x).toFixed(4)} ]   [ ${f(a)}·${f(x)} + ${f(b)}·${f(y)} ]   [ ${f(Mv[0]).toFixed(4)} ]\n`+
+    `[ ${f(c).toFixed(4)}  ${f(d).toFixed(4)} ] [ ${f(y).toFixed(4)} ] = [ ${f(c)}·${f(x)} + ${f(d)}·${f(y)} ] = [ ${f(Mv[1]).toFixed(4)} ]`;
   const badges=document.getElementById('badges');
   badges.innerHTML='';
   ['x','y'].forEach((comp,i)=>{
@@ -149,6 +152,7 @@ function showResultPanel(Mv){
 }
 function computeAndCheck(){
   if(s.pred[0]===null||s.pred[1]===null)return;
+  if(s.mode==='quiz'&&s.revealed)return;
   const Mv=MathCore.multiplyVec(s.M,s.v);
   s.result=Mv;
   s.revealed=true;
@@ -176,7 +180,7 @@ function genRandom(){
     M=[[vals[Math.floor(Math.random()*4)],vals[Math.floor(Math.random()*4)]],[vals[Math.floor(Math.random()*4)],vals[Math.floor(Math.random()*4)]]];
     tries++;
   }while(Math.abs(MathCore.det2(M))<0.1&&tries<20);
-  if(tries>=20)M=[[2,1],[1,1]];
+  if(tries>=20&&Math.abs(MathCore.det2(M))<0.1)M=[[2,1],[1,1]];
   return M;
 }
 function genVector(){
@@ -247,7 +251,6 @@ function drawScene(){
   if(vLen>0.001)r.drawArrow([0,0],s.v,'#7a82a8','v',2);
   if(s.revealed){
     const Mv=s.result;
-    MathCore.matLerp([[s.v[0],0],[s.v[1],0]],[[Mv[0],0],[Mv[1],0]],s.animProg);
     const pt=[s.v[0]+(Mv[0]-s.v[0])*s.animProg,s.v[1]+(Mv[1]-s.v[1])*s.animProg];
     r.drawArrow([0,0],pt,'#f7c948','Mv',2.5);
     if(s.pred[0]!==null&&s.pred[1]!==null){
@@ -269,7 +272,7 @@ function drawScene(){
     ctx.strokeStyle='rgba(167,139,250,0.5)';
     ctx.lineWidth=1.5;
     ctx.beginPath();
-    ctx.arc(ox,oy,arcR,-0,-angle,angle<0);
+    ctx.arc(ox,oy,arcR,0,-angle,angle>0);
     ctx.stroke();
     ctx.restore();
   }
@@ -281,7 +284,7 @@ const predYEl=document.getElementById('predY');
 thetaNum.addEventListener('input',()=>{
   const v=thetaNum.value;
   if(v===''){breakRotLink();updateMatInfo();save();return;}
-  const t=MathCore.sanitize(Number(v));
+  const t=Number.isFinite(Number(v))?Number(v):0;
   thetaSlider.value=Math.max(-180,Math.min(180,t));
   applyTheta(t);
 });
@@ -294,7 +297,7 @@ document.getElementById('modeExplore').onclick=()=>setMode('explore');
 document.getElementById('modeQuiz').onclick=()=>setMode('quiz');
 document.getElementById('newChallengeBtn').onclick=newChallenge;
 document.getElementById('vx').addEventListener('input',e=>{
-  s.v[0]=MathCore.sanitize(Number(e.target.value)||0);
+  s.v[0]=Number(e.target.value)||0;
   s.result=null;s.revealed=false;
   if(s.activeTween){s.activeTween.stop();s.activeTween=null;}
   s.animProg=1;
@@ -302,7 +305,7 @@ document.getElementById('vx').addEventListener('input',e=>{
   save();
 });
 document.getElementById('vy').addEventListener('input',e=>{
-  s.v[1]=MathCore.sanitize(Number(e.target.value)||0);
+  s.v[1]=Number(e.target.value)||0;
   s.result=null;s.revealed=false;
   if(s.activeTween){s.activeTween.stop();s.activeTween=null;}
   s.animProg=1;
